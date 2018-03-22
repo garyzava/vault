@@ -3,12 +3,17 @@ package main
 const tmpl = `
 openapi: "3.0.0"
 info:
-  version: 1.0.0
-  title: Swagger Petstore
+  version: {{ .Version }}
+  title: Hashicorp
   license:
-    name: MIT
-servers:
-  - url: http://petstore.swagger.io/v1
-paths:
-{{ range . }}
-{{.Method }} {{ .Pattern }}:{{ end }}`
+    name: Mozilla Public License 2.0
+
+paths:{{ range .Paths }}
+  {{ .Pattern }}:
+    {{ .Method }}:
+      summary: {{ .Summary }}
+      parameters: {{ range .Parameters }}
+        - name: {{ .Name }}
+          in: {{ .In }}
+          type: {{ .Type }}{{ end }}
+{{ end }}`
