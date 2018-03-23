@@ -17,6 +17,11 @@ func TestParsePattern(t *testing.T) {
 		{"sys", "rekey/backup$", []pathlet{{"/sys/rekey/backup", ess}}},
 		{"sys", "auth/(?P<path>.+?)/tune$", []pathlet{{"/sys/auth/{path}/tune", setMaker("path")}}},
 		{"sys", "auth/(?P<path>.+?)/tune/(?P<more>.*?)$", []pathlet{{"/sys/auth/{path}/tune/{more}", setMaker("path", "more")}}},
+		{"sys", "tools/hash(/(?P<urlalgorithm>.+))?", []pathlet{
+			{"/sys/tools/hash/{urlalgorithm}", setMaker("urlalgorithm")},
+			{"/sys/tools/hash", setMaker()},
+		}},
+
 		/* optional elements
 		tools/hash(/(?P<urlalgorithm>.+))?
 		{"sys", "leases/lookup/(?P<prefix>.+?)?", []pathlet{

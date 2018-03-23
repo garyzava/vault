@@ -12,6 +12,11 @@ import (
 	"github.com/hashicorp/vault/version"
 )
 
+// regexen
+var optRe = regexp.MustCompile(`\(.*\)\?`)
+var cleanRe = regexp.MustCompile("[()$?]")
+var reqdRe = regexp.MustCompile(`\(\?P<(\w+)>[^)]*\)`)
+
 type Doc struct {
 	Version string
 	Paths   []Path
@@ -40,25 +45,36 @@ type pathlet struct {
 	params  map[string]bool
 }
 
+func deRegex(s string) string {
+	return cleanRe.ReplaceAllString(s, "")
+}
+
 func parsePattern(root, pat string) []pathlet {
 	paths := make([]pathlet, 0)
-	pat = strings.TrimRight(pat, "$")
+	var toppaths []string
 
-	reqd_re := regexp.MustCompile(`\(\?P<(\w+)>[^)]*\)`)
-
-	params := make(map[string]bool)
-	result := reqd_re.FindAllStringSubmatch(pat, -1)
-	if result != nil {
-		//println(pat)
-		//println(len(result))
-		for _, p := range result {
-			par := p[1]
-			params[par] = true
-			pat = strings.Replace(pat, p[0], fmt.Sprintf("{%s}", par), 1)
-		}
+	opt_result := optRe.FindAllString(pat, -1)
+	if len(opt_result) > 0 {
+		toppaths = append(toppaths, optRe.ReplaceAllString(pat, opt_result[0][0:len(opt_result[0])-1]))
+		toppaths = append(toppaths, optRe.ReplaceAllString(pat, ""))
+	} else {
+		toppaths = append(toppaths, pat)
 	}
-	pat = fmt.Sprintf("/%s/%s", root, pat)
-	paths = append(paths, pathlet{pat, params})
+
+	for _, pat := range toppaths {
+		params := make(map[string]bool)
+		result := reqdRe.FindAllStringSubmatch(pat, -1)
+		if result != nil {
+			for _, p := range result {
+				par := p[1]
+				params[par] = true
+				pat = strings.Replace(pat, p[0], fmt.Sprintf("{%s}", par), 1)
+			}
+		}
+		pat = fmt.Sprintf("/%s/%s", root, pat)
+		pat = deRegex(pat)
+		paths = append(paths, pathlet{pat, params})
+	}
 	return paths
 }
 
@@ -82,11 +98,13 @@ func procLogicalPath(p *framework.Path) []Path {
 			m.HTTPMethod = "post"
 		case logical.DeleteOperation:
 			m.HTTPMethod = "delete"
-		default:
+		case logical.ReadOperation:
 			m.HTTPMethod = "get"
+		case logical.ListOperation:
+			m.HTTPMethod = "get"
+		default:
+			panic(fmt.Sprintf("unknown operation type %v", opType))
 		}
-
-		//println(p.Pattern)
 
 		d := make(map[string]bool)
 		for _, path := range paths {
@@ -101,6 +119,7 @@ func procLogicalPath(p *framework.Path) []Path {
 		}
 
 		for name, field := range p.Fields {
+			// TODO don't need ", ok"
 			if _, ok := d[name]; !ok {
 				m.Parameters = append(m.Parameters, Parameter{
 					Name:        name,
