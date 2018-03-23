@@ -3,11 +3,14 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"text/template"
 
 	"github.com/hashicorp/vault/logical"
+	"github.com/hashicorp/vault/logical/framework"
 	"github.com/hashicorp/vault/vault"
 	"github.com/hashicorp/vault/version"
 )
@@ -25,7 +28,18 @@ func funcIndent(count int, text string) string {
 
 type Doc struct {
 	Version string
-	Paths   []PathDoc
+	Paths   []Path
+}
+
+type Path struct {
+	Pattern string
+	Methods []Method
+}
+
+type Method struct {
+	HTTPMethod string
+	Summary    string
+	Parameters []Parameter
 }
 
 type Parameter struct {
@@ -34,17 +48,90 @@ type Parameter struct {
 	In   string
 }
 
-type PathDoc struct {
-	Pattern    string
-	Method     string
-	Summary    string
-	Parameters []Parameter
+type pathlet struct {
+	pattern string
+	params  map[string]bool
 }
 
-func cleanPattern(pat string) string {
-	pat = "/sys/" + pat
+func parsePattern(root, pat string) []pathlet {
+	paths := make([]pathlet, 0)
 	pat = strings.TrimRight(pat, "$")
-	return pat
+
+	reqd_re := regexp.MustCompile(`\(\?P<(\w+)>[^)]*\)`)
+
+	params := make(map[string]bool)
+	result := reqd_re.FindAllStringSubmatch(pat, -1)
+	if result != nil {
+		//println(pat)
+		//println(len(result))
+		for _, p := range result {
+			par := p[1]
+			params[par] = true
+			pat = strings.Replace(pat, p[0], fmt.Sprintf("{%s}", par), 1)
+		}
+	}
+	pat = fmt.Sprintf("/%s/%s", root, pat)
+	paths = append(paths, pathlet{pat, params})
+	return paths
+}
+
+func cleanSynopsis(syn string) string {
+	if idx := strings.Index(syn, "\n"); idx != -1 {
+		syn = syn[0:idx] + "…"
+	}
+	return syn
+}
+
+func procLogicalPath(p *framework.Path) []Path {
+	var docPaths []Path
+	methods := []Method{}
+
+	paths := parsePattern("sys", p.Pattern)
+
+	for opType := range p.Callbacks {
+		m := Method{}
+		switch opType {
+		case logical.UpdateOperation:
+			m.HTTPMethod = "post"
+		case logical.DeleteOperation:
+			m.HTTPMethod = "delete"
+		default:
+			m.HTTPMethod = "get"
+		}
+
+		//println(p.Pattern)
+
+		d := make(map[string]bool)
+		for _, path := range paths {
+			for param := range path.params {
+				d[param] = true
+				m.Parameters = append(m.Parameters, Parameter{
+					Name: param,
+					Type: "string",
+					In:   "path",
+				})
+			}
+		}
+
+		for name, field := range p.Fields {
+			if _, ok := d[name]; !ok {
+				m.Parameters = append(m.Parameters, Parameter{
+					Name: name,
+					Type: string(field.Type),
+					In:   "body",
+				})
+			}
+		}
+		methods = append(methods, m)
+	}
+	pd := Path{
+		Pattern: paths[0].pattern,
+		//Summary: cleanSynopsis(p.HelpSynopsis),
+		Methods: methods,
+	}
+	docPaths = append(docPaths, pd)
+
+	return docPaths
 }
 
 func main() {
@@ -53,29 +140,14 @@ func main() {
 
 	doc := Doc{
 		Version: version.GetVersion().Version,
-		Paths:   make([]PathDoc, 0),
+		Paths:   make([]Path, 0),
 	}
 
-	for _, path := range b.Backend.Paths {
-		method := "get"
-		if _, ok := path.Callbacks[logical.DeleteOperation]; ok {
-			method = "delete"
-		}
-
-		pd := PathDoc{
-			Pattern:    cleanPattern(path.Pattern),
-			Method:     method,
-			Summary:    path.HelpSynopsis,
-			Parameters: []Parameter{{"a", "b", "c"}, {"1", "2", "3"}},
-		}
-		doc.Paths = append(doc.Paths, pd)
+	for _, p := range b.Backend.Paths {
+		paths := procLogicalPath(p)
+		doc.Paths = append(doc.Paths, paths...)
 	}
 
-	//const prefix = "/sys/"
-	//sort.Strings(paths)
-	//for _, path := range paths {
-	//	fmt.Printf("%s%s\n", prefix, path)
-	//}
 	// Define the functions
 	funcs := map[string]interface{}{
 		"indent": funcIndent,
