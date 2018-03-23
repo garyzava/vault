@@ -6,7 +6,7 @@ import (
 )
 
 func TestParsePattern(t *testing.T) {
-	ess := []string{}
+	ess := make(map[string]bool)
 
 	tests := []struct {
 		root         string
@@ -15,8 +15,8 @@ func TestParsePattern(t *testing.T) {
 	}{
 		{"sys", "rekey/backup", []pathlet{{"/sys/rekey/backup", ess}}},
 		{"sys", "rekey/backup$", []pathlet{{"/sys/rekey/backup", ess}}},
-		{"sys", "auth/(?P<path>.+?)/tune$", []pathlet{{"/sys/auth/{path}/tune", []string{"path"}}}},
-		{"sys", "auth/(?P<path>.+?)/tune/(?P<more>.*?)$", []pathlet{{"/sys/auth/{path}/tune/{more}", []string{"path", "more"}}}},
+		{"sys", "auth/(?P<path>.+?)/tune$", []pathlet{{"/sys/auth/{path}/tune", setMaker("path")}}},
+		{"sys", "auth/(?P<path>.+?)/tune/(?P<more>.*?)$", []pathlet{{"/sys/auth/{path}/tune/{more}", setMaker("path", "more")}}},
 		/* optional elements
 		tools/hash(/(?P<urlalgorithm>.+))?
 		{"sys", "leases/lookup/(?P<prefix>.+?)?", []pathlet{
@@ -39,5 +39,14 @@ func TestParsePattern(t *testing.T) {
 			t.Fatalf("Test %d: Expected %v got %v", i, test.out_pathlets, out)
 		}
 	}
+}
 
+func setMaker(strings ...string) map[string]bool {
+	ret := make(map[string]bool)
+
+	for _, s := range strings {
+		ret[s] = true
+	}
+
+	return ret
 }
