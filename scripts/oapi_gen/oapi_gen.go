@@ -43,9 +43,10 @@ type Method struct {
 }
 
 type Parameter struct {
-	Name string
-	Type string
-	In   string
+	Name        string
+	Description string
+	Type        string
+	In          string
 }
 
 type pathlet struct {
@@ -116,9 +117,10 @@ func procLogicalPath(p *framework.Path) []Path {
 		for name, field := range p.Fields {
 			if _, ok := d[name]; !ok {
 				m.Parameters = append(m.Parameters, Parameter{
-					Name: name,
-					Type: string(field.Type),
-					In:   "body",
+					Name:        name,
+					Type:        field.Type.String(),
+					Description: field.Description,
+					In:          "body",
 				})
 			}
 		}
