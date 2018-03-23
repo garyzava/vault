@@ -1,30 +1,16 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
-	"text/template"
 
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 	"github.com/hashicorp/vault/vault"
 	"github.com/hashicorp/vault/version"
 )
-
-func funcIndent(count int, text string) string {
-	var buf bytes.Buffer
-	prefix := strings.Repeat(" ", count)
-	scan := bufio.NewScanner(strings.NewReader(text))
-	for scan.Scan() {
-		buf.WriteString(prefix + scan.Text() + "\n")
-	}
-
-	return strings.TrimRight(buf.String(), "\n")
-}
 
 type Doc struct {
 	Version string
@@ -150,13 +136,9 @@ func main() {
 		doc.Paths = append(doc.Paths, paths...)
 	}
 
-	// Define the functions
-	funcs := map[string]interface{}{
-		"indent": funcIndent,
+	r := OAPIRenderer{
+		output:   os.Stdout,
+		template: tmpl,
 	}
-
-	// Parse the help template
-	tmpl, _ := template.New("root").Funcs(funcs).Parse(tmpl)
-	tmpl.Execute(os.Stdout, doc)
-
+	r.render(doc)
 }
