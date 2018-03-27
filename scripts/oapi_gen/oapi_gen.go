@@ -33,11 +33,15 @@ type Method struct {
 	Parameters []Parameter
 }
 
-type Parameter struct {
+type Property struct {
 	Name        string
-	Description string
 	Type        string
-	In          string
+	Description string
+}
+
+type Parameter struct {
+	Property Property
+	In       string
 }
 
 type pathlet struct {
@@ -78,11 +82,13 @@ func parsePattern(root, pat string) []pathlet {
 	return paths
 }
 
-func cleanSynopsis(syn string) string {
+// TODO: this is conservative. Should omit surrounding quotes if not needed.
+func escapeYAML(syn string) string {
 	if idx := strings.Index(syn, "\n"); idx != -1 {
 		syn = syn[0:idx] + "…"
 	}
-	return syn
+	syn = strings.Replace(syn, `"`, `\"`, -1)
+	return fmt.Sprintf(`"%s"`, syn)
 }
 
 func procLogicalPath(p *framework.Path) []Path {
@@ -92,7 +98,9 @@ func procLogicalPath(p *framework.Path) []Path {
 	paths := parsePattern("sys", p.Pattern)
 
 	for opType := range p.Callbacks {
-		m := Method{}
+		m := Method{
+			Summary: "Yay, a summary!", // TODO escapify
+		}
 		switch opType {
 		case logical.UpdateOperation:
 			m.HTTPMethod = "post"
@@ -101,7 +109,8 @@ func procLogicalPath(p *framework.Path) []Path {
 		case logical.ReadOperation:
 			m.HTTPMethod = "get"
 		case logical.ListOperation:
-			m.HTTPMethod = "get"
+			continue
+			//m.HTTPMethod = "get"
 		default:
 			panic(fmt.Sprintf("unknown operation type %v", opType))
 		}
@@ -111,9 +120,11 @@ func procLogicalPath(p *framework.Path) []Path {
 			for param := range path.params {
 				d[param] = true
 				m.Parameters = append(m.Parameters, Parameter{
-					Name: param,
-					Type: "string",
-					In:   "path",
+					In: "path",
+					Property: Property{
+						Name: param,
+						Type: "string",
+					},
 				})
 			}
 		}
@@ -122,10 +133,12 @@ func procLogicalPath(p *framework.Path) []Path {
 			// TODO don't need ", ok"
 			if _, ok := d[name]; !ok {
 				m.Parameters = append(m.Parameters, Parameter{
-					Name:        name,
-					Type:        field.Type.String(),
-					Description: field.Description,
-					In:          "body",
+					In: "body",
+					Property: Property{
+						Name:        name,
+						Description: escapeYAML(field.Description),
+						Type:        field.Type.String(),
+					},
 				})
 			}
 		}
@@ -133,7 +146,6 @@ func procLogicalPath(p *framework.Path) []Path {
 	}
 	pd := Path{
 		Pattern: paths[0].pattern,
-		//Summary: cleanSynopsis(p.HelpSynopsis),
 		Methods: methods,
 	}
 	docPaths = append(docPaths, pd)

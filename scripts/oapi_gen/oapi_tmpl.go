@@ -9,13 +9,14 @@ info:
 
 paths:{{ range .Paths }}
   {{ .Pattern }}:{{ range .Methods }}
-    {{ .HTTPMethod }}:
-      summary: {{ .Summary }}
+    {{ .HTTPMethod }}:{{ if .Summary }}
+      summary: {{ .Summary }}{{ end }}{{ if .Parameters }}
       parameters: {{ range .Parameters }}
-        - name: {{ .Name }}
-          description: {{ .Description }}
+        - name: {{ .Property.Name }}
+          description: {{ .Property.Description }}
           in: {{ .In }}
-          type: {{ .Type }}{{ end }}
+          type: {{ .Property.Type }}{{ end }}
+      {{ end }}
       responses:
         '200':
           description: Yay!{{ end }}
