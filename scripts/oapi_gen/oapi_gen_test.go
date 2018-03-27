@@ -15,11 +15,17 @@ func TestParsePattern(t *testing.T) {
 	}{
 		{"sys", "rekey/backup", []pathlet{{"/sys/rekey/backup", ess}}},
 		{"sys", "rekey/backup$", []pathlet{{"/sys/rekey/backup", ess}}},
-		{"sys", "auth/(?P<path>.+?)/tune$", []pathlet{{"/sys/auth/{path}/tune", setMaker("path")}}},
-		{"sys", "auth/(?P<path>.+?)/tune/(?P<more>.*?)$", []pathlet{{"/sys/auth/{path}/tune/{more}", setMaker("path", "more")}}},
+		{"sys", "auth/(?P<path>.+?)/tune$", []pathlet{{"/sys/auth/{path}/tune", set("path")}}},
+		{"sys", "auth/(?P<path>.+?)/tune/(?P<more>.*?)$", []pathlet{{"/sys/auth/{path}/tune/{more}", set("path", "more")}}},
 		{"sys", "tools/hash(/(?P<urlalgorithm>.+))?", []pathlet{
-			{"/sys/tools/hash/{urlalgorithm}", setMaker("urlalgorithm")},
-			{"/sys/tools/hash", setMaker()},
+			{"/sys/tools/hash", set()},
+			{"/sys/tools/hash/{urlalgorithm}", set("urlalgorithm")},
+		}},
+		{"sys", "(leases/)?renew(/(?P<url_lease_id>.+))?", []pathlet{
+			{"/sys/leases/renew", set()},
+			{"/sys/leases/renew/{url_lease_id}", set("url_lease_id")},
+			{"/sys/renew", set()},
+			{"/sys/renew/{url_lease_id}", set("url_lease_id")},
 		}},
 
 		/* optional elements
@@ -39,14 +45,14 @@ func TestParsePattern(t *testing.T) {
 		out := parsePattern(root, pat)[0].pattern
 	*/
 	for i, test := range tests {
-		out := parsePattern(test.root, test.in_pattern)
+		out := expandPattern(test.root, test.in_pattern)
 		if !reflect.DeepEqual(out, test.out_pathlets) {
 			t.Fatalf("Test %d: Expected %v got %v", i, test.out_pathlets, out)
 		}
 	}
 }
 
-func setMaker(strings ...string) map[string]bool {
+func set(strings ...string) map[string]bool {
 	ret := make(map[string]bool)
 
 	for _, s := range strings {

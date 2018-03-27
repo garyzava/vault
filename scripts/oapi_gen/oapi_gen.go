@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/vault/logical"
@@ -13,7 +14,7 @@ import (
 )
 
 // regexen
-var optRe = regexp.MustCompile(`\(.*\)\?`)
+var optRe = regexp.MustCompile(`(?U)\(.*\)\?`)
 var cleanRe = regexp.MustCompile("[()$?]")
 var reqdRe = regexp.MustCompile(`\(\?P<(\w+)>[^)]*\)`)
 
@@ -54,17 +55,26 @@ func deRegex(s string) string {
 	return cleanRe.ReplaceAllString(s, "")
 }
 
-func parsePattern(root, pat string) []pathlet {
+// expandPattern expands a regex pattern by generating permutations of any optional parameters
+// and changing named parameters into their {open_api} style equivalents.
+func expandPattern(root, pat string) []pathlet {
 	paths := make([]pathlet, 0)
-	var toppaths []string
+	toppaths := []string{pat}
 
-	opt_result := optRe.FindAllString(pat, -1)
-	if len(opt_result) > 0 {
-		toppaths = append(toppaths, optRe.ReplaceAllString(pat, opt_result[0][0:len(opt_result[0])-1]))
-		toppaths = append(toppaths, optRe.ReplaceAllString(pat, ""))
-	} else {
-		toppaths = append(toppaths, pat)
+	// expand all optional elements into two paths. This apporach really only useful up to 2 optional
+	// groups, but we probably don't want to deal with the exponential increase for the general case.
+	for i := 0; i < len(toppaths); i++ {
+		p := toppaths[i]
+		match := optRe.FindStringIndex(p)
+		if match != nil {
+			toppaths[i] = p[0:match[0]] + p[match[0]+1:match[1]-2] + p[match[1]:]
+			toppaths = append(toppaths, p[0:match[0]]+p[match[1]:])
+			i--
+		}
+
 	}
+
+	sort.Strings(toppaths)
 
 	for _, pat := range toppaths {
 		params := make(map[string]bool)
@@ -99,15 +109,13 @@ func procLogicalPath(p *framework.Path) []Path {
 	if strings.Contains(p.Pattern, "revoke-prefix") {
 		//verbose = true
 	}
-	paths := parsePattern("sys", p.Pattern)
+	paths := expandPattern("sys", p.Pattern)
 	if verbose {
 		fmt.Println(paths)
 	}
 
-	fmt.Printf("Processing pattern: %v\n", p.Pattern)
 	for _, path := range paths {
 		methods := []Method{}
-		fmt.Printf("Processing %s\n", path)
 		for opType := range p.Callbacks {
 			m := Method{
 				Summary: "Yay, a summary!", // TODO escapify
