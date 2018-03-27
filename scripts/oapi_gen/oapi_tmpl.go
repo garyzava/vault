@@ -16,8 +16,8 @@ paths:{{ range .Paths }}
           description: {{ .Property.Description }} BLAH
           in: {{ .In }}
           type: {{ .Property.Type }}
-          required: true{{ end }}
-      {{ end }}
+          required: true{{ end -}}
+      {{ end -}}
       {{ if .BodyProps }}
         - name: Delete me
           in: body
@@ -26,8 +26,7 @@ paths:{{ range .Paths }}
             properties:{{ range .BodyProps }}
               {{ .Name }}:
                 description: {{ .Description }}
-                type: {{ .Type }}{{ end }}
-{{ end }}
+                type: {{ .Type }}{{ end }}{{ end }}
       responses:
         '200':
           description: Yay!{{ end }}
