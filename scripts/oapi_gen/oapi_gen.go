@@ -95,36 +95,38 @@ func escapeYAML(syn string) string {
 func procLogicalPath(p *framework.Path) []Path {
 	var docPaths []Path
 	var verbose bool
-	methods := []Method{}
 
 	if strings.Contains(p.Pattern, "revoke-prefix") {
-		verbose = true
+		//verbose = true
 	}
 	paths := parsePattern("sys", p.Pattern)
 	if verbose {
 		fmt.Println(paths)
 	}
 
-	for opType := range p.Callbacks {
-		m := Method{
-			Summary: "Yay, a summary!", // TODO escapify
-		}
-		switch opType {
-		case logical.UpdateOperation:
-			m.HTTPMethod = "post"
-		case logical.DeleteOperation:
-			m.HTTPMethod = "delete"
-		case logical.ReadOperation:
-			m.HTTPMethod = "get"
-		case logical.ListOperation:
-			continue
-			//m.HTTPMethod = "get"
-		default:
-			panic(fmt.Sprintf("unknown operation type %v", opType))
-		}
+	fmt.Printf("Processing pattern: %v\n", p.Pattern)
+	for _, path := range paths {
+		methods := []Method{}
+		fmt.Printf("Processing %s\n", path)
+		for opType := range p.Callbacks {
+			m := Method{
+				Summary: "Yay, a summary!", // TODO escapify
+			}
+			switch opType {
+			case logical.UpdateOperation:
+				m.HTTPMethod = "post"
+			case logical.DeleteOperation:
+				m.HTTPMethod = "delete"
+			case logical.ReadOperation:
+				m.HTTPMethod = "get"
+			case logical.ListOperation:
+				continue
+				//m.HTTPMethod = "get"
+			default:
+				panic(fmt.Sprintf("unknown operation type %v", opType))
+			}
 
-		d := make(map[string]bool)
-		for _, path := range paths {
+			d := make(map[string]bool)
 			for param := range path.params {
 				d[param] = true
 				m.Parameters = append(m.Parameters, Parameter{
@@ -135,26 +137,29 @@ func procLogicalPath(p *framework.Path) []Path {
 					},
 				})
 			}
-		}
 
-		//m.BodyProps = make([]Property, 0)
-		for name, field := range p.Fields {
-			// TODO don't need ", ok"
-			if _, ok := d[name]; !ok {
-				m.BodyProps = append(m.BodyProps, Property{
-					Name:        name,
-					Description: escapeYAML(field.Description),
-					Type:        "string", //field.Type.String(),
-				})
+			//m.BodyProps = make([]Property, 0)
+			for name, field := range p.Fields {
+				//fmt.Printf("Processing field %s\n", name)
+				// TODO don't need ", ok"
+				if _, ok := d[name]; !ok {
+					m.BodyProps = append(m.BodyProps, Property{
+						Name:        name,
+						Description: escapeYAML(field.Description),
+						Type:        "string", //field.Type.String(),
+					})
+				}
 			}
+			methods = append(methods, m)
 		}
-		methods = append(methods, m)
+		if len(methods) > 0 {
+			pd := Path{
+				Pattern: path.pattern,
+				Methods: methods,
+			}
+			docPaths = append(docPaths, pd)
+		}
 	}
-	pd := Path{
-		Pattern: paths[0].pattern,
-		Methods: methods,
-	}
-	docPaths = append(docPaths, pd)
 
 	return docPaths
 }
@@ -169,6 +174,9 @@ func main() {
 	}
 
 	for _, p := range b.Backend.Paths {
+		if !strings.Contains(p.Pattern, "revoke-prefix") {
+			//continue
+		}
 		paths := procLogicalPath(p)
 		doc.Paths = append(doc.Paths, paths...)
 	}
@@ -178,5 +186,5 @@ func main() {
 		template: tmpl,
 	}
 	_ = r
-	//r.render(doc)
+	r.render(doc)
 }
