@@ -31,6 +31,7 @@ type Method struct {
 	HTTPMethod string
 	Summary    string
 	Parameters []Parameter
+	BodyProps  []Property
 }
 
 type Property struct {
@@ -93,9 +94,16 @@ func escapeYAML(syn string) string {
 
 func procLogicalPath(p *framework.Path) []Path {
 	var docPaths []Path
+	var verbose bool
 	methods := []Method{}
 
+	if strings.Contains(p.Pattern, "revoke-prefix") {
+		verbose = true
+	}
 	paths := parsePattern("sys", p.Pattern)
+	if verbose {
+		fmt.Println(paths)
+	}
 
 	for opType := range p.Callbacks {
 		m := Method{
@@ -129,16 +137,14 @@ func procLogicalPath(p *framework.Path) []Path {
 			}
 		}
 
+		//m.BodyProps = make([]Property, 0)
 		for name, field := range p.Fields {
 			// TODO don't need ", ok"
 			if _, ok := d[name]; !ok {
-				m.Parameters = append(m.Parameters, Parameter{
-					In: "body",
-					Property: Property{
-						Name:        name,
-						Description: escapeYAML(field.Description),
-						Type:        field.Type.String(),
-					},
+				m.BodyProps = append(m.BodyProps, Property{
+					Name:        name,
+					Description: escapeYAML(field.Description),
+					Type:        "string", //field.Type.String(),
 				})
 			}
 		}
@@ -171,5 +177,6 @@ func main() {
 		output:   os.Stdout,
 		template: tmpl,
 	}
-	r.render(doc)
+	_ = r
+	//r.render(doc)
 }
