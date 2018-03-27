@@ -6,7 +6,7 @@ import (
 )
 
 func TestParsePattern(t *testing.T) {
-	ess := make(map[string]bool)
+	var ess []string
 
 	tests := []struct {
 		root         string
@@ -52,12 +52,6 @@ func TestParsePattern(t *testing.T) {
 	}
 }
 
-func set(strings ...string) map[string]bool {
-	ret := make(map[string]bool)
-
-	for _, s := range strings {
-		ret[s] = true
-	}
-
-	return ret
+func set(strings ...string) []string {
+	return strings
 }

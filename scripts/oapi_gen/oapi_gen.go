@@ -48,7 +48,7 @@ type Parameter struct {
 
 type pathlet struct {
 	pattern string
-	params  map[string]bool
+	params  []string
 }
 
 func deRegex(s string) string {
@@ -77,12 +77,12 @@ func expandPattern(root, pat string) []pathlet {
 	sort.Strings(toppaths)
 
 	for _, pat := range toppaths {
-		params := make(map[string]bool)
+		var params []string
 		result := reqdRe.FindAllStringSubmatch(pat, -1)
 		if result != nil {
 			for _, p := range result {
 				par := p[1]
-				params[par] = true
+				params = append(params, par)
 				pat = strings.Replace(pat, p[0], fmt.Sprintf("{%s}", par), 1)
 			}
 		}
@@ -135,7 +135,7 @@ func procLogicalPath(p *framework.Path) []Path {
 			}
 
 			d := make(map[string]bool)
-			for param := range path.params {
+			for _, param := range path.params {
 				d[param] = true
 				m.Parameters = append(m.Parameters, Parameter{
 					In: "path",
