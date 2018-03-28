@@ -123,17 +123,17 @@ func escapeYAML(syn string) string {
 	return fmt.Sprintf(`"%s"`, syn)
 }
 
-func procLogicalPath(p *framework.Path) []Path {
+func procLogicalPath(prefix string, p *framework.Path) []Path {
 	var docPaths []Path
 
-	paths := expandPattern("sys", p.Pattern)
+	paths := expandPattern(prefix, p.Pattern)
 
 	for _, path := range paths {
 		methods := []Method{}
 		for opType := range p.Callbacks {
 			m := Method{
 				Summary: escapeYAML(p.HelpSynopsis),
-				Tags:    []string{"sys"},
+				Tags:    []string{prefix},
 			}
 			switch opType {
 			case logical.UpdateOperation:
@@ -164,7 +164,6 @@ func procLogicalPath(p *framework.Path) []Path {
 
 			for name, field := range p.Fields {
 				if _, ok := d[name]; !ok {
-					//		fmt.Printf("%v %v %v %v\n", name, field.Type, int(field.Type), convertType(field.Type))
 					m.BodyProps = append(m.BodyProps, Property{
 						Name:        name,
 						Description: escapeYAML(field.Description),
@@ -196,17 +195,14 @@ func main() {
 	}
 
 	for _, p := range b.Backend.Paths {
-		if !strings.Contains(p.Pattern, "revoke-prefix") {
-			//continue
-		}
-		paths := procLogicalPath(p)
+		paths := procLogicalPath("sys", p)
 		doc.Paths = append(doc.Paths, paths...)
 	}
 
 	r := OAPIRenderer{
 		output:   os.Stdout,
 		template: tmpl,
+		version:  2,
 	}
-	_ = r
 	r.render(doc)
 }

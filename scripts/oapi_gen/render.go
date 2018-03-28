@@ -11,6 +11,7 @@ import (
 type OAPIRenderer struct {
 	output   io.Writer
 	template string
+	version  int
 }
 
 func (r *OAPIRenderer) render(doc Doc) {
