@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/vault/builtin/logical/aws"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 	"github.com/hashicorp/vault/vault"
@@ -21,6 +22,20 @@ var reqdRe = regexp.MustCompile(`\(\?P<(\w+)>[^)]*\)`)
 type Doc struct {
 	Version string
 	Paths   []Path
+}
+
+func NewDoc() Doc {
+	return Doc{
+		Version: version.GetVersion().Version,
+		Paths:   make([]Path, 0),
+	}
+}
+
+func (d *Doc) loadBackend(prefix string, backend *framework.Backend) {
+	for _, p := range backend.Paths {
+		paths := procLogicalPath(prefix, p)
+		d.Paths = append(d.Paths, paths...)
+	}
 }
 
 type Path struct {
@@ -115,7 +130,8 @@ func expandPattern(root, pat string) []pathlet {
 }
 
 // TODO: this is conservative. Should omit surrounding quotes if not needed.
-func escapeYAML(syn string) string {
+func prepareString(syn string) string {
+	syn = strings.TrimSpace(syn)
 	if idx := strings.Index(syn, "\n"); idx != -1 {
 		syn = syn[0:idx] + "…"
 	}
@@ -132,7 +148,7 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 		methods := []Method{}
 		for opType := range p.Callbacks {
 			m := Method{
-				Summary: escapeYAML(p.HelpSynopsis),
+				Summary: prepareString(p.HelpSynopsis),
 				Tags:    []string{prefix},
 			}
 			switch opType {
@@ -157,7 +173,7 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 					Property: Property{
 						Name:        param,
 						Type:        convertType(p.Fields[param].Type),
-						Description: escapeYAML(p.Fields[param].Description),
+						Description: prepareString(p.Fields[param].Description),
 					},
 				})
 			}
@@ -166,7 +182,7 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 				if _, ok := d[name]; !ok {
 					m.BodyProps = append(m.BodyProps, Property{
 						Name:        name,
-						Description: escapeYAML(field.Description),
+						Description: prepareString(field.Description),
 						Type:        convertType(field.Type),
 					})
 				}
@@ -188,16 +204,11 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 func main() {
 	c := vault.Core{}
 	b := vault.NewSystemBackend(&c)
+	aws_be := aws.Backend()
 
-	doc := Doc{
-		Version: version.GetVersion().Version,
-		Paths:   make([]Path, 0),
-	}
-
-	for _, p := range b.Backend.Paths {
-		paths := procLogicalPath("sys", p)
-		doc.Paths = append(doc.Paths, paths...)
-	}
+	doc := NewDoc()
+	doc.loadBackend("sys", b.Backend)
+	doc.loadBackend("aws", aws_be.Backend)
 
 	r := OAPIRenderer{
 		output:   os.Stdout,
