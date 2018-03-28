@@ -55,6 +55,26 @@ func deRegex(s string) string {
 	return cleanRe.ReplaceAllString(s, "")
 }
 
+func convertType(t framework.FieldType) string {
+	ret := "unknown type"
+
+	switch t {
+	case framework.TypeString, framework.TypeNameString, framework.TypeKVPairs:
+		ret = "string"
+	case framework.TypeInt, framework.TypeDurationSecond:
+		ret = "number"
+	case framework.TypeBool:
+		ret = "boolean"
+	case framework.TypeMap:
+		ret = "object"
+	case framework.TypeSlice, framework.TypeStringSlice, framework.TypeCommaStringSlice, framework.TypeCommaIntSlice:
+		ret = "string"
+		//ret = "array"  TODO: figure out handling of these since they will require field subtypes
+	}
+
+	return ret
+}
+
 // expandPattern expands a regex pattern by generating permutations of any optional parameters
 // and changing named parameters into their {open_api} style equivalents.
 func expandPattern(root, pat string) []pathlet {
@@ -104,21 +124,14 @@ func escapeYAML(syn string) string {
 
 func procLogicalPath(p *framework.Path) []Path {
 	var docPaths []Path
-	var verbose bool
 
-	if strings.Contains(p.Pattern, "revoke-prefix") {
-		//verbose = true
-	}
 	paths := expandPattern("sys", p.Pattern)
-	if verbose {
-		fmt.Println(paths)
-	}
 
 	for _, path := range paths {
 		methods := []Method{}
 		for opType := range p.Callbacks {
 			m := Method{
-				Summary: "Yay, a summary!", // TODO escapify
+				Summary: escapeYAML(p.HelpSynopsis),
 			}
 			switch opType {
 			case logical.UpdateOperation:
@@ -140,21 +153,20 @@ func procLogicalPath(p *framework.Path) []Path {
 				m.Parameters = append(m.Parameters, Parameter{
 					In: "path",
 					Property: Property{
-						Name: param,
-						Type: "string",
+						Name:        param,
+						Type:        convertType(p.Fields[param].Type),
+						Description: escapeYAML(p.Fields[param].Description),
 					},
 				})
 			}
 
-			//m.BodyProps = make([]Property, 0)
 			for name, field := range p.Fields {
-				//fmt.Printf("Processing field %s\n", name)
-				// TODO don't need ", ok"
 				if _, ok := d[name]; !ok {
+					//		fmt.Printf("%v %v %v %v\n", name, field.Type, int(field.Type), convertType(field.Type))
 					m.BodyProps = append(m.BodyProps, Property{
 						Name:        name,
 						Description: escapeYAML(field.Description),
-						Type:        "string", //field.Type.String(),
+						Type:        convertType(field.Type),
 					})
 				}
 			}
