@@ -31,6 +31,7 @@ type Path struct {
 type Method struct {
 	HTTPMethod string
 	Summary    string
+	Tags       []string
 	Parameters []Parameter
 	BodyProps  []Property
 }
@@ -132,6 +133,7 @@ func procLogicalPath(p *framework.Path) []Path {
 		for opType := range p.Callbacks {
 			m := Method{
 				Summary: escapeYAML(p.HelpSynopsis),
+				Tags:    []string{"sys"},
 			}
 			switch opType {
 			case logical.UpdateOperation:
