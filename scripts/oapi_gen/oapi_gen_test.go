@@ -27,6 +27,9 @@ func TestParsePattern(t *testing.T) {
 			{"/sys/renew", set()},
 			{"/sys/renew/{url_lease_id}", set("url_lease_id")},
 		}},
+		{"sys", `config/ui/headers/(?P<header>\w(([\w-.]+)?\w)?)`, []pathlet{
+			{"/sys/config/ui/headers/{header}", set("header")},
+		}},
 
 		/* optional elements
 		tools/hash(/(?P<urlalgorithm>.+))?

@@ -7,14 +7,15 @@ import (
 	"sort"
 	"strings"
 
+	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/builtin/logical/aws"
+	"github.com/hashicorp/vault/helper/logging"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 	"github.com/hashicorp/vault/vault"
 	"github.com/hashicorp/vault/version"
 )
 
-// regexen
 var optRe = regexp.MustCompile(`(?U)\(.*\)\?`)
 var cleanRe = regexp.MustCompile("[()$?]")
 var reqdRe = regexp.MustCompile(`\(\?P<(\w+)>[^)]*\)`)
@@ -94,7 +95,10 @@ func convertType(t framework.FieldType) string {
 // expandPattern expands a regex pattern by generating permutations of any optional parameters
 // and changing named parameters into their {open_api} style equivalents.
 func expandPattern(root, pat string) []pathlet {
-	paths := make([]pathlet, 0)
+	// This construct is added by GenericNameRegex and is much easier to remove now
+	// than compensate for in the other regexes.
+	pat = strings.Replace(pat, `\w(([\w-.]+)?\w)?`, "", -1)
+
 	toppaths := []string{pat}
 
 	// expand all optional elements into two paths. This apporach really only useful up to 2 optional
@@ -112,6 +116,7 @@ func expandPattern(root, pat string) []pathlet {
 
 	sort.Strings(toppaths)
 
+	paths := make([]pathlet, 0)
 	for _, pat := range toppaths {
 		var params []string
 		result := reqdRe.FindAllStringSubmatch(pat, -1)
@@ -178,13 +183,17 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 				})
 			}
 
-			for name, field := range p.Fields {
-				if _, ok := d[name]; !ok {
-					m.BodyProps = append(m.BodyProps, Property{
-						Name:        name,
-						Description: prepareString(field.Description),
-						Type:        convertType(field.Type),
-					})
+			// It's assumed that any fields not present in the path can be part of
+			// the body for POST methods.
+			if m.HTTPMethod == "post" {
+				for name, field := range p.Fields {
+					if _, ok := d[name]; !ok {
+						m.BodyProps = append(m.BodyProps, Property{
+							Name:        name,
+							Description: prepareString(field.Description),
+							Type:        convertType(field.Type),
+						})
+					}
 				}
 			}
 			methods = append(methods, m)
@@ -203,7 +212,7 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 
 func main() {
 	c := vault.Core{}
-	b := vault.NewSystemBackend(&c)
+	b := vault.NewSystemBackend(&c, logging.NewVaultLogger(log.Trace))
 	aws_be := aws.Backend()
 
 	doc := NewDoc()
@@ -216,4 +225,5 @@ func main() {
 		version:  2,
 	}
 	r.render(doc)
+	_ = r
 }
