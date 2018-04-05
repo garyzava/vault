@@ -4006,3 +4006,5 @@ This path responds to the following HTTP methods.
 		"A list of headers to whitelist and pass from the request to the backend.",
 	},
 }
+
+var SysHelp = sysHelp

@@ -13,55 +13,11 @@ import (
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 	"github.com/hashicorp/vault/vault"
-	"github.com/hashicorp/vault/version"
 )
 
 var optRe = regexp.MustCompile(`(?U)\(.*\)\?`)
 var cleanRe = regexp.MustCompile("[()$?]")
 var reqdRe = regexp.MustCompile(`\(\?P<(\w+)>[^)]*\)`)
-
-type Doc struct {
-	Version string
-	Paths   []Path
-}
-
-func NewDoc() Doc {
-	return Doc{
-		Version: version.GetVersion().Version,
-		Paths:   make([]Path, 0),
-	}
-}
-
-func (d *Doc) loadBackend(prefix string, backend *framework.Backend) {
-	for _, p := range backend.Paths {
-		paths := procLogicalPath(prefix, p)
-		d.Paths = append(d.Paths, paths...)
-	}
-}
-
-type Path struct {
-	Pattern string
-	Methods []Method
-}
-
-type Method struct {
-	HTTPMethod string
-	Summary    string
-	Tags       []string
-	Parameters []Parameter
-	BodyProps  []Property
-}
-
-type Property struct {
-	Name        string
-	Type        string
-	Description string
-}
-
-type Parameter struct {
-	Property Property
-	In       string
-}
 
 type pathlet struct {
 	pattern string
@@ -218,6 +174,17 @@ func main() {
 	doc := NewDoc()
 	doc.loadBackend("sys", b.Backend)
 	doc.loadBackend("aws", aws_be.Backend)
+
+	doc.Add(Path{
+		Pattern: "/sys/init",
+		Methods: []Method{
+			{
+				HTTPMethod: "get",
+				Summary:    vault.SysHelp["init"][0],
+				Tags:       []string{"sys"},
+			},
+		},
+	})
 
 	r := OAPIRenderer{
 		output:   os.Stdout,
