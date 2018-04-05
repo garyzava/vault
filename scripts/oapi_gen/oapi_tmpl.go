@@ -12,23 +12,23 @@ info:
     url: https://www.mozilla.org/en-US/MPL/2.0
 
 paths:{{ range .Paths }}
-  {{ .Pattern }}:{{ range .Methods }}
-    {{ .HTTPMethod }}:{{ if .Summary }}
-      summary: {{ .Summary }}{{ end }}
+  {{ .Pattern }}:{{ range $method, $el := .Methods }}
+    {{ $method }}:{{ if $el.Summary }}
+      summary: {{ $el.Summary }}{{ end }}
       produces:
         - application/json
       tags:
-	  {{- range .Tags }}
+	  {{- range $el.Tags }}
         - {{ . }}
-      {{- end }}{{ if (or .Parameters .BodyProps) }}
-      parameters:{{ range .Parameters }}
+      {{- end }}{{ if (or $el.Parameters $el.BodyProps) }}
+      parameters:{{ range $el.Parameters }}
         - name: {{ .Property.Name }}
           description: {{ .Property.Description }}
           in: {{ .In }}
           type: {{ .Property.Type }}
           required: true{{ end -}}
       {{ end -}}
-      {{ if .BodyProps }}
+      {{ if $el.BodyProps }}
         - name: Data
           in: body
           schema:
@@ -36,7 +36,13 @@ paths:{{ range .Paths }}
             properties:{{ range .BodyProps }}
               {{ .Name }}:
                 description: {{ .Description }}
-                type: {{ .Type }}{{ end }}{{ end }}
+                type: {{ .Type }}
+				{{- if (eq .Type "array") }}
+                items:
+                  type: {{ .SubType }}
+				{{- end }}
+            {{- end }}
+      {{-  end }}
       responses:
         200:
           description: OK{{ end }}

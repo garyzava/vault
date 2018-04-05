@@ -28,8 +28,8 @@ func deRegex(s string) string {
 	return cleanRe.ReplaceAllString(s, "")
 }
 
-func convertType(t framework.FieldType) string {
-	ret := "unknown type"
+func convertType(t framework.FieldType) (string, string) {
+	var ret, sub string
 
 	switch t {
 	case framework.TypeString, framework.TypeNameString, framework.TypeKVPairs:
@@ -40,12 +40,17 @@ func convertType(t framework.FieldType) string {
 		ret = "boolean"
 	case framework.TypeMap:
 		ret = "object"
-	case framework.TypeSlice, framework.TypeStringSlice, framework.TypeCommaStringSlice, framework.TypeCommaIntSlice:
-		ret = "string"
-		//ret = "array"  TODO: figure out handling of these since they will require field subtypes
+	case framework.TypeSlice, framework.TypeStringSlice, framework.TypeCommaStringSlice:
+		ret = "array"
+		sub = "string"
+	case framework.TypeCommaIntSlice:
+		ret = "array"
+		sub = "number"
+	default:
+		panic(fmt.Sprintf("Unsupported type %d", t))
 	}
 
-	return ret
+	return ret, sub
 }
 
 // expandPattern expands a regex pattern by generating permutations of any optional parameters
@@ -102,11 +107,13 @@ func prepareString(syn string) string {
 
 func procLogicalPath(prefix string, p *framework.Path) []Path {
 	var docPaths []Path
+	var httpMethod string
 
 	paths := expandPattern(prefix, p.Pattern)
 
 	for _, path := range paths {
-		methods := []Method{}
+		methods := make(map[string]Method)
+
 		for opType := range p.Callbacks {
 			m := Method{
 				Summary: prepareString(p.HelpSynopsis),
@@ -114,14 +121,14 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 			}
 			switch opType {
 			case logical.UpdateOperation:
-				m.HTTPMethod = "post"
+				httpMethod = "post"
 			case logical.DeleteOperation:
-				m.HTTPMethod = "delete"
+				httpMethod = "delete"
 			case logical.ReadOperation:
-				m.HTTPMethod = "get"
+				httpMethod = "get"
 			case logical.ListOperation:
 				continue
-				//m.HTTPMethod = "get"
+				//httpMethod = "get"
 			default:
 				panic(fmt.Sprintf("unknown operation type %v", opType))
 			}
@@ -129,11 +136,13 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 			d := make(map[string]bool)
 			for _, param := range path.params {
 				d[param] = true
+				typ, sub := convertType(p.Fields[param].Type)
 				m.Parameters = append(m.Parameters, Parameter{
 					In: "path",
 					Property: Property{
 						Name:        param,
-						Type:        convertType(p.Fields[param].Type),
+						Type:        typ,
+						SubType:     sub,
 						Description: prepareString(p.Fields[param].Description),
 					},
 				})
@@ -141,18 +150,20 @@ func procLogicalPath(prefix string, p *framework.Path) []Path {
 
 			// It's assumed that any fields not present in the path can be part of
 			// the body for POST methods.
-			if m.HTTPMethod == "post" {
+			if httpMethod == "post" {
 				for name, field := range p.Fields {
 					if _, ok := d[name]; !ok {
+						typ, sub := convertType(field.Type)
 						m.BodyProps = append(m.BodyProps, Property{
 							Name:        name,
 							Description: prepareString(field.Description),
-							Type:        convertType(field.Type),
+							Type:        typ,
+							SubType:     sub,
 						})
 					}
 				}
 			}
-			methods = append(methods, m)
+			methods[httpMethod] = m
 		}
 		if len(methods) > 0 {
 			pd := Path{
@@ -177,11 +188,17 @@ func main() {
 
 	doc.Add(Path{
 		Pattern: "/sys/init",
-		Methods: []Method{
-			{
-				HTTPMethod: "get",
-				Summary:    vault.SysHelp["init"][0],
-				Tags:       []string{"sys"},
+		Methods: map[string]Method{
+			"get": {
+				Summary: vault.SysHelp["init"][0],
+				Tags:    []string{"sys"},
+			},
+			"post": {
+				Summary: vault.SysHelp["init"][0],
+				Tags:    []string{"sys"},
+				BodyProps: []Property{
+					{"pgp_keys", "array", "string", "Specifies an array of PGP public keys used to encrypt the output unseal keys."},
+				},
 			},
 		},
 	})
